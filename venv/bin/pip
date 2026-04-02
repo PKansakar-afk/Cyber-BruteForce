@@ -1,4 +1,4 @@
-#!/home/anzo/pov-cybersecurity/project/venv/bin/python3
+#!/home/anzo/pov-cybersecurity/Cyber-BruteForce/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

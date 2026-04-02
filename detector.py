@@ -33,7 +33,7 @@ def detect_burst_failures(failed_df, threshold=5, window_seconds=60):
 
     records = failed_df.to_dict("records")
 
-    for i, row in enumerate(records):
+    for row in records:
         start_time = row["timestamp"]
         end_time = start_time + timedelta(seconds=window_seconds)
 
@@ -94,7 +94,7 @@ def detect_targeted_accounts(failed_df, threshold=5, window_minutes=5):
         group = group.sort_values("timestamp")
         records = group.to_dict("records")
 
-        for i, row in enumerate(records):
+        for row in records:
             start_time = row["timestamp"]
             end_time = start_time + timedelta(minutes=window_minutes)
 
@@ -107,6 +107,7 @@ def detect_targeted_accounts(failed_df, threshold=5, window_minutes=5):
                 alerts.append(
                     {
                         "type": "Targeted Account",
+                        "severity": "High",
                         "message": f"Account '{username}' has {len(window_rows)} failed attempts within {window_minutes} minutes",
                         "username": username,
                     }

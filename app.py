@@ -4,7 +4,6 @@ import ipaddress
 
 from detector import add_attempt, generate_alerts, generate_summary
 
-
 st.set_page_config(page_title="Brute-Force Attempt Detector", layout="wide")
 
 st.title("Brute-Force Attempt Detector Dashboard")
@@ -55,6 +54,7 @@ if login_clicked:
         except ValueError:
             st.error("Invalid IP address format.")
             st.stop()
+
         if username in USERS and USERS[username] == password:
             status = "SUCCESS"
             st.session_state.last_result = "SUCCESS"
@@ -67,6 +67,8 @@ if login_clicked:
         st.session_state.history = add_attempt(
             st.session_state.history, username, ip, status
         )
+
+# Last login result
 st.subheader("Last Login Result")
 if st.session_state.last_result == "SUCCESS":
     st.success("Last attempt: SUCCESS")
@@ -74,7 +76,6 @@ elif st.session_state.last_result == "FAIL":
     st.error("Last attempt: FAIL")
 else:
     st.info("No login attempt submitted yet.")
-
 
 # Generate alerts and summary
 alerts, failed_df = generate_alerts(st.session_state.history)
@@ -93,7 +94,7 @@ m5.metric("Alerts", summary["alert_count"])
 st.subheader("Alerts")
 if alerts:
     for alert in alerts:
-        st.warning(f"{alert['type']}: {alert['message']}")
+        st.warning(f"[{alert['severity']}] {alert['type']}: {alert['message']}")
 else:
     st.info("No brute-force alerts detected yet.")
 
@@ -110,14 +111,14 @@ else:
 # Failed attempts table
 st.subheader("Failed Login Attempts")
 if not failed_df.empty:
-    st.dataframe(
-        failed_df.sort_values("timestamp", ascending=False),
-        use_container_width=True,
-    )
+    failed_display_df = failed_df.copy()
+    failed_display_df["timestamp"] = pd.to_datetime(failed_display_df["timestamp"])
+    failed_display_df = failed_display_df.sort_values("timestamp", ascending=False)
+    st.dataframe(failed_display_df, use_container_width=True)
 else:
     st.info("No failed login attempts yet.")
 
-# Simple charts
+# Charts
 st.subheader("Charts")
 if not failed_df.empty:
     col_a, col_b = st.columns(2)
@@ -134,6 +135,7 @@ if not failed_df.empty:
 else:
     st.info("Charts will appear after failed login attempts are recorded.")
 
+# CSV log analysis
 st.subheader("CSV Log Analysis")
 
 uploaded_file = st.file_uploader("Upload a CSV log file", type=["csv"])
@@ -167,7 +169,7 @@ if uploaded_file is not None:
     else:
         st.error("CSV must contain these columns: timestamp, username, ip, status")
 
-# Optional: reset button
+# Reset button
 if st.button("Reset History"):
     st.session_state.history = []
     st.session_state.last_result = None
