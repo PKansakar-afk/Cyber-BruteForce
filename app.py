@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import ipaddress
+import time
+import os
 
 from detector import add_attempt, generate_alerts, generate_summary
 
@@ -173,4 +175,60 @@ if uploaded_file is not None:
 if st.button("Reset History"):
     st.session_state.history = []
     st.session_state.last_result = None
+    st.rerun()
+
+st.divider()
+st.subheader("Live Log Monitoring (Real-Time)")
+
+# A toggle switch to turn live mode on and off
+live_mode = st.toggle("Enable Live Monitoring")
+
+if live_mode:
+    # Initialize file tracking in session state
+    if "last_line_read" not in st.session_state:
+        st.session_state.last_line_read = 1 # Skip header line
+    
+    live_file = os.path.join("live_logs", "live_logs.csv")
+    
+    if os.path.exists(live_file):
+        with open(live_file, "r") as f:
+            lines = f.readlines()
+            total_lines = len(lines)
+            
+            if total_lines > st.session_state.last_line_read:
+                new_lines = lines[st.session_state.last_line_read:]
+                
+                # Parse the new lines and add them to our history
+                for line in new_lines:
+                    # Clean the line and split by CSV comma
+                    parts = line.strip().split(",")
+                    if len(parts) == 4:
+                        timestamp, user, ip, status = parts
+                        st.session_state.history.append({
+                            "timestamp": pd.to_datetime(timestamp),
+                            "username": user,
+                            "ip": ip,
+                            "status": status
+                        })
+                
+                # Update bookmark
+                st.session_state.last_line_read = total_lines
+                
+        # Re-run detection on the updated history
+        live_alerts, live_failed_df = generate_alerts(st.session_state.history)
+        
+        # Display a live metric
+        st.metric("Total Logs Ingested", len(st.session_state.history))
+        
+        # Flash an alert if something new was caught
+        if live_alerts:
+            st.error("THREAT DETECTED!!!")
+            # Show the most recent 3 alerts
+            for alert in live_alerts[-3:]: 
+                st.warning(f"[{alert['severity']}] {alert['type']}: {alert['message']}")
+    else:
+        st.info("Waiting for live_logs.csv to be created. Run your traffic simulator!")
+
+    # Pause for 2 seconds, then refresh the whole dashboard automatically
+    time.sleep(2)
     st.rerun()
