@@ -123,6 +123,24 @@ else:
 # Charts
 st.subheader("Charts")
 if not failed_df.empty:
+    # Time Series Chart
+    st.write("Failed Attempts Over Time (1-Minute Intervals)")
+    
+    # Create a copy
+    time_df = failed_df.copy()
+    
+    # Set the timestamp as the index
+    time_df.set_index("timestamp", inplace=True)
+    
+    # Resample the data into 10 second bins ('10s') and count the rows (.size())
+    time_series = time_df.resample("10s").size()
+    
+    # Plot it natively in Streamlit
+    st.line_chart(time_series)
+    
+    st.divider()
+
+    # Bar Charts
     col_a, col_b = st.columns(2)
 
     with col_a:
