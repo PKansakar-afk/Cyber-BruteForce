@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import pandas as pd
-
+from collections import deque
 
 def add_attempt(history, username, ip, status):
     history.append(
@@ -27,39 +27,40 @@ def get_failed_attempts(history):
 
 def detect_burst_failures(failed_df, threshold=5, window_seconds=60):
     alerts = []
-
     if failed_df.empty:
         return alerts
 
     records = failed_df.to_dict("records")
+    window = deque()
+    last_alert_time = None
 
     for row in records:
-        start_time = row["timestamp"]
-        end_time = start_time + timedelta(seconds=window_seconds)
+        window.append(row)
+        
+        # Slide the window: remove records older than our window_seconds
+        while window and (row["timestamp"] - window[0]["timestamp"]).total_seconds() > window_seconds:
+            window.popleft()
 
-        window_rows = [
-            r for r in records
-            if start_time <= r["timestamp"] <= end_time
-        ]
-
-        if len(window_rows) >= threshold:
-            ips = set(r["ip"] for r in window_rows)
-            alerts.append(
-                {
-                    "type": "Burst Failure",
-                    "severity": "High",
-                    "message": f"{len(window_rows)} failed attempts within {window_seconds} seconds",
-                    "ips": ", ".join(sorted(ips)),
-                }
-            )
-            break
+        # If our current sliding window hits the threshold
+        if len(window) >= threshold:
+            # Only trigger a new alert if we are outside the previous alert's cooldown window
+            if last_alert_time is None or (row["timestamp"] - last_alert_time).total_seconds() > window_seconds:
+                ips = set(r["ip"] for r in window)
+                alerts.append(
+                    {
+                        "type": "Burst Failure",
+                        "severity": "High",
+                        "message": f"{len(window)} failed attempts within {window_seconds} seconds",
+                        "ips": ", ".join(sorted(ips)),
+                    }
+                )
+                last_alert_time = row["timestamp"]
 
     return alerts
 
 
 def detect_suspicious_ips(failed_df, threshold=8, unique_user_threshold=3):
     alerts = []
-
     if failed_df.empty:
         return alerts
 
@@ -84,35 +85,38 @@ def detect_suspicious_ips(failed_df, threshold=8, unique_user_threshold=3):
 
 def detect_targeted_accounts(failed_df, threshold=5, window_minutes=5):
     alerts = []
-
     if failed_df.empty:
         return alerts
 
     grouped = failed_df.groupby("username")
 
     for username, group in grouped:
+        # Sort group by timestamp just in case
         group = group.sort_values("timestamp")
         records = group.to_dict("records")
+        
+        window = deque()
+        last_alert_time = None # FIX APPLIED HERE
 
         for row in records:
-            start_time = row["timestamp"]
-            end_time = start_time + timedelta(minutes=window_minutes)
+            window.append(row)
+            
+            # Slide the window: remove records older than our window_minutes
+            while window and (row["timestamp"] - window[0]["timestamp"]).total_seconds() > (window_minutes * 60):
+                window.popleft()
 
-            window_rows = [
-                r for r in records
-                if start_time <= r["timestamp"] <= end_time
-            ]
-
-            if len(window_rows) >= threshold:
-                alerts.append(
-                    {
-                        "type": "Targeted Account",
-                        "severity": "High",
-                        "message": f"Account '{username}' has {len(window_rows)} failed attempts within {window_minutes} minutes",
-                        "username": username,
-                    }
-                )
-                break
+            if len(window) >= threshold:
+                # FIX APPLIED HERE
+                if last_alert_time is None or (row["timestamp"] - last_alert_time).total_seconds() > (window_minutes * 60):
+                    alerts.append(
+                        {
+                            "type": "Targeted Account",
+                            "severity": "High",
+                            "message": f"Account '{username}' has {len(window)} failed attempts within {window_minutes} minutes",
+                            "username": username,
+                        }
+                    )
+                    last_alert_time = row["timestamp"]
 
     return alerts
 
