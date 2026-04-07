@@ -168,6 +168,8 @@ if uploaded_file is not None:
     required_columns = {"timestamp", "username", "ip", "status"}
 
     if required_columns.issubset(set(csv_df.columns)):
+        csv_df["timestamp"] = pd.to_datetime(csv_df["timestamp"])
+
         temp_history = csv_df.to_dict("records")
         alerts_csv, failed_csv = generate_alerts(temp_history)
         summary_csv = generate_summary(temp_history, failed_csv, alerts_csv)
@@ -186,6 +188,42 @@ if uploaded_file is not None:
                 st.warning(f"[{alert['severity']}] {alert['type']}: {alert['message']}")
         else:
             st.info("No brute-force alerts detected in uploaded CSV.")
+
+        st.subheader("CSV Login Attempt History")
+        csv_display_df = csv_df.sort_values("timestamp", ascending=False)
+        st.dataframe(csv_display_df, use_container_width=True)
+
+        st.subheader("CSV Failed Login Attempts")
+        if not failed_csv.empty:
+            failed_csv_display = failed_csv.sort_values("timestamp", ascending=False)
+            st.dataframe(failed_csv_display, use_container_width=True)
+        else:
+            st.info("No failed login attempts found in uploaded CSV.")
+
+        st.subheader("CSV Charts")
+        if not failed_csv.empty:
+            time_df = failed_csv.copy()
+            time_df["timestamp"] = pd.to_datetime(time_df["timestamp"])
+            time_df = time_df.set_index("timestamp")
+            time_series = time_df.resample("10s").size()
+
+            st.write("Failed Attempts Over Time (CSV)")
+            st.line_chart(time_series)
+
+            col_csv1, col_csv2 = st.columns(2)
+
+            with col_csv1:
+                st.write("Failed Attempts by IP (CSV)")
+                ip_counts_csv = failed_csv["ip"].value_counts()
+                st.bar_chart(ip_counts_csv)
+
+            with col_csv2:
+                st.write("Failed Attempts by Username (CSV)")
+                user_counts_csv = failed_csv["username"].value_counts()
+                st.bar_chart(user_counts_csv)
+        else:
+            st.info("No charts available because there are no failed attempts in the uploaded CSV.")
+
     else:
         st.error("CSV must contain these columns: timestamp, username, ip, status")
 

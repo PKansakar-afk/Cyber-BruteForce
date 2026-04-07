@@ -10,6 +10,11 @@ python -m pip install -r requirements.txt
 
 python -m streamlit run app.py
 
+source venv/bin/activate
+python generate_logs.py
+
+source venv/bin/activate
+python live_traffic_simulator.py
 
 
 # Changes made
